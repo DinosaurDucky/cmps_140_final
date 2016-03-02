@@ -10,6 +10,7 @@ from captureAgents import CaptureAgent
 import random, time, util
 from game import Directions
 import game
+from capture import GameState
 from math import *
 
 
@@ -18,7 +19,7 @@ from math import *
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first = 'DummyAgent', second = 'DummyAgent'):
+               first = 'MCTSAgent', second = 'MCTSAgent'):
   """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
@@ -42,14 +43,16 @@ def createTeam(firstIndex, secondIndex, isRed,
 ##########
 
 class Node:
-    def __init__(self, move = None, parent = None, state = None):
+    def __init__(self, move = None, parent = None, state = None, index = 0):
         self.move = move # the move that got us to this node
+        self.state = state
         self.parentNode = parent
         self.childNodes = []
-        self.points = 0
+        self.scoreSum = 0
         self.visits = 0
-        self.untriedMoves = state.getLegalActions(state.index)
-        self.playerJustMoved = None # not sure what this is for yet
+        self.index = index
+        self.untriedMoves = self.state.getLegalActions(self.index)
+        self.playerJustMoved = (self.index - 1) % state.getNumAgents() # not sure what this is for yet
 
     def UCTSelectChild(self):
         # ucb1 formula to select a child node
@@ -58,28 +61,50 @@ class Node:
         s = random.shuffle(self.childNodes);
         return s
 
-    def addChild(self, move, state):
-        newNode = Node(move=move, parent=self, state=state)
+    def addChild(self, move, state, index):
+        newNode = Node(move=move, parent=self, state=state, index=index)
         self.untriedMoves.remove(move)
         self.childNodes.append(newNode)
         return newNode
 
-    def update(self, result):
+    def update(self, score):
         self.visits += 1
-        self.points += result
+        self.scoreSum += score
 
 def UCT(rootState, maxIterations=100):
     rootNode = Node(state = rootState)
 
     for i in range(maxIterations):
         node = rootNode
-        state = rootState.Clone()
+        state = GameState(node.state)
+        index = node.index
 
         #select:
-        if len(node.untriedMoves) > 0:
+        while not node.untriedMoves and node.childNodes:
+            node = node.UCTSSelectChild()
+            state = state.generateSuccessor(index, move)
+            index += 1
+            
+        #expand
+        if node.untriedMoves:
             move = random.choice(node.untriedMoves)
-            state = 
-
+            state = state.generateSuccessor(index, move)
+            node = node.addChild(move, state, (index+1) % state.getNumAgents() )
+            
+        #rollout
+        while state.GetMoves():
+            legalActions = state.getLegalActions(index % state.getNumAgents())
+            state = getSuccessor(state, random.choice(legalActions))
+            index += 1
+        
+        #backpropagate
+        while node:
+            node.update(state.getScore())
+            node = node.parentNode  
+            
+    return sorted(rootNode.childNodes, key = lambda c: c.visits)[-1].move # return the move that was most visited
+          
+            
 class MCTSAgent(CaptureAgent):
   """
   A Dummy agent to serve as an example of the necessary agent structure.
@@ -114,12 +139,7 @@ class MCTSAgent(CaptureAgent):
 
 
   def chooseAction(self, gameState):
-    """
-    Picks among actions randomly.
-    """
-    actions = gameState.getLegalActions(self.index)
-
-
-
-    return random.choice(actions)
+ 
+    
+    return UCT(gameState, 100)
 
