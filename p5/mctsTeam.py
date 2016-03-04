@@ -8,8 +8,10 @@
 
 from captureAgents import CaptureAgent
 import random, time, util
+from distanceCalculator import Distancer
 from game import Directions
-import game
+from game import AgentState
+from game import Configuration
 from capture import GameState
 from math import *
 
@@ -42,6 +44,62 @@ def createTeam(firstIndex, secondIndex, isRed,
 # Agents #
 ##########
 
+
+def inverseManhattanDistance(pos, distance, gameState):
+    x, y = pos
+    width = gameState.data.layout.width
+    height = gameState.data.layout.height
+    positions = []
+    while len(positions) is 0:
+        for i in range(distance):
+            targetX = x - distance + i
+            targetY = y + i
+            if 1 <= targetX and targetX < width and 1 <= targetY and targetY < height and not gameState.hasWall(targetX, targetY):
+                positions.append((targetX, targetY))
+        for i in range(distance):
+            targetX = x + distance - i
+            targetY = y + i
+            if 1 <= targetX and targetX < width and 1 <= targetY and targetY < height and not gameState.hasWall(targetX, targetY):
+                positions.append((targetX, targetY))
+
+        for i in range(1, distance):
+            targetX = x - distance + i
+            targetY = y - i
+            if 1 <= targetX and targetX < width and 1 <= targetY and targetY < height and not gameState.hasWall(targetX, targetY):
+                positions.append((targetX, targetY))
+        for i in range(1, distance):
+            targetX = x + distance - i
+            targetY = y - i
+            if 1 <= targetX and targetX < width and 1 <= targetY and targetY < height and not gameState.hasWall(targetX, targetY):
+                positions.append((targetX, targetY))
+
+        distance -= 1
+
+    return positions
+
+
+def fixState(gameState, index, enemyIndices):
+
+    #self.gameState = gameState
+    pos = gameState.getAgentPosition(index)
+    positions = []
+    for playerIndex in range(gameState.getNumAgents()):
+        if playerIndex in enemyIndices:
+            dist = gameState.getAgentDistances()[playerIndex]
+            enemyPositions = inverseManhattanDistance(pos, dist, gameState)
+            #can put nonrandom choice here
+            positions.append(random.choice(enemyPositions))
+        else:
+            positions.append( gameState.getAgentPosition(playerIndex))
+
+    for i in range(gameState.getNumAgents()):
+        if gameState.data.agentStates[i].configuration is None:
+            isPacman = i%2 == 1 and gameState.isRed(positions[i]) or i % 2 == 0 and not gameState.isRed(positions[i])
+            gameState.data.agentStates[i] = AgentState(Configuration(positions[i], 'Stop'), isPacman)
+
+
+    return gameState
+
 class Node:
     def __init__(self, move = None, parent = None, state = None, index = 0):
         self.move = move # the move that got us to this node
@@ -57,8 +115,8 @@ class Node:
     def UCTSelectChild(self):
         # ucb1 formula to select a child node
         # balances exploitation vs exploration
-        #s = sorted(self.childNodes, key = lambda c: c.currentEval/c.visits + sqrt(2*log(self.visits)/c.visits))[-1]
-        s = random.shuffle(self.childNodes);
+        s = sorted(self.childNodes, key = lambda c: c.scoreSum/c.visits + sqrt(2*log(self.visits)/c.visits))[-1]
+        #s = random.shuffle(self.childNodes);
         return s
 
     def addChild(self, move, state, index):
@@ -72,50 +130,38 @@ class Node:
         self.scoreSum += score
 
 
+def UCT(rootState, maxIterations, index, enemyIndices ):
+    fixedState = fixState(rootState, index, enemyIndices)
+    rootNode = Node(state = fixedState)
 
-class State:
-    def __init__(self, gameState):
-        print gameState
-        print "\n---------------\n", gameState.getAgentDistances(), "\n---------------\n"
-        self.agentPositions = []
-        for i in range(gameState.getNumAgents()):
-            if gameState.getAgentState(i):
-                self.agentPositions.append(gameState.getAgentState(i))
-            else:
-                # what we should do here is get an approximate position for agent at index i
-                # using the noisy distance function.
-                # i haven't figured out how to do this yet.
-                print "crap"
-
-
-def UCT(rootState, maxIterations=100):
-    rootNode = Node(state = rootState)
-
-    S = State(rootState)
 
     for i in range(maxIterations):
         node = rootNode
         state = GameState(node.state)
         index = node.index
 
-        #select:
+
+        #select
         while not node.untriedMoves and node.childNodes:
-            node = node.UCTSSelectChild()
-            state = state.generateSuccessor(index, move)
+            node = node.UCTSelectChild()
+            state = state.generateSuccessor(index % state.getNumAgents(), node.move)
             index += 1
             
         #expand
         if node.untriedMoves:
             move = random.choice(node.untriedMoves)
-            state = state.generateSuccessor(index, move)
+            state = state.generateSuccessor(index % state.getNumAgents(), move)
             node = node.addChild(move, state, (index+1) % state.getNumAgents() )
-            
+
+
+        count = 0
         #rollout
-        while state.GetMoves():
+        while count < 10 and state.getLegalActions(index % state.getNumAgents()):
             legalActions = state.getLegalActions(index % state.getNumAgents())
-            state = state.generateSuccessor(state, random.choice(legalActions))
+            state = state.generateSuccessor(index % state.getNumAgents(), random.choice(legalActions))
             index += 1
-        
+            count += 1
+
         #backpropagate
         while node:
             node.update(state.getScore())
@@ -159,6 +205,6 @@ class MCTSAgent(CaptureAgent):
 
   def chooseAction(self, gameState):
  
-    
-    return UCT(gameState, 100)
+
+    return UCT(gameState, 100, self.index, self.getOpponents(gameState) )
 
