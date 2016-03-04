@@ -71,22 +71,21 @@ class Node:
         self.visits += 1
         self.scoreSum += score
 
-# returns a list of positions that are dist away from pos
-def inverseManhattan(gameState, pos, dist):
-    Positions = []
 
 
 class State:
     def __init__(self, gameState):
         print gameState
         print "\n---------------\n", gameState.getAgentDistances(), "\n---------------\n"
-        print "\n---------------\n", gameState.makeObservation(0), "\n---------------\n"
         self.agentPositions = []
         for i in range(gameState.getNumAgents()):
             if gameState.getAgentState(i):
-                self.agentPositions.append()
+                self.agentPositions.append(gameState.getAgentState(i))
             else:
-                print
+                # what we should do here is get an approximate position for agent at index i
+                # using the noisy distance function.
+                # i haven't figured out how to do this yet.
+                print "crap"
 
 
 def UCT(rootState, maxIterations=100):
