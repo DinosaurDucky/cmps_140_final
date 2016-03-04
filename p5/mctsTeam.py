@@ -71,8 +71,28 @@ class Node:
         self.visits += 1
         self.scoreSum += score
 
+# returns a list of positions that are dist away from pos
+def inverseManhattan(gameState, pos, dist):
+    Positions = []
+
+
+class State:
+    def __init__(self, gameState):
+        print gameState
+        print "\n---------------\n", gameState.getAgentDistances(), "\n---------------\n"
+        print "\n---------------\n", gameState.makeObservation(0), "\n---------------\n"
+        self.agentPositions = []
+        for i in range(gameState.getNumAgents()):
+            if gameState.getAgentState(i):
+                self.agentPositions.append()
+            else:
+                print
+
+
 def UCT(rootState, maxIterations=100):
     rootNode = Node(state = rootState)
+
+    S = State(rootState)
 
     for i in range(maxIterations):
         node = rootNode
@@ -94,7 +114,7 @@ def UCT(rootState, maxIterations=100):
         #rollout
         while state.GetMoves():
             legalActions = state.getLegalActions(index % state.getNumAgents())
-            state = getSuccessor(state, random.choice(legalActions))
+            state = state.generateSuccessor(state, random.choice(legalActions))
             index += 1
         
         #backpropagate

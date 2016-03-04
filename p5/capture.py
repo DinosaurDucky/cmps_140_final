@@ -105,10 +105,6 @@ class GameState:
     return state
 
   def getAgentState(self, index):
-    print self.data.agentStates
-    print "index", index
-    for agent in self.data.agentStates:
-        print agent
     return self.data.agentStates[index]
 
   def getAgentPosition(self, index):
