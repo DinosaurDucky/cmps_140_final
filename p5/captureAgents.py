@@ -145,7 +145,6 @@ class CaptureAgent(Agent):
     move - this occurs because Pacman agents move half as quickly as ghost agents).
 
     """
-    self.observationHistory.append(gameState)
 
     myState = gameState.getAgentState(self.index)
     myPos = myState.getPosition()

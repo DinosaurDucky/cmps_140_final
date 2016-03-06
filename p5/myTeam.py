@@ -120,13 +120,15 @@ class Node:
         self.index = index
         self.untriedMoves = self.state.getLegalActions(self.index)
         self.untriedMoves.remove("Stop")
-        self.playerJustMoved = (self.index - 1) % state.getNumAgents() # not sure what this is for yet
 
     def UCTSelectChild(self):
         # ucb1 formula to select a child node
         # balances exploitation vs exploration
-        s = sorted(self.childNodes, key = lambda c: c.scoreSum/c.visits + sqrt(2*log(self.visits)/c.visits))[-1]
-        #s = random.shuffle(self.childNodes);
+        #s = sorted(self.childNodes, key = lambda c: c.scoreSum/c.visits + sqrt(2*log(self.visits)/c.visits))[-1]
+        s = max(self.childNodes, key = lambda c: c.scoreSum/c.visits + sqrt(2*log(self.visits)/c.visits))
+        #s = sorted(self.childNodes, key = lambda c: c.scoreSum*c.scoreSum/(c.visits*c.visits) + 2*log(self.visits)/c.visits)[-1]
+        #s = max(self.childNodes, key = lambda c: c.scoreSum*c.scoreSum/(c.visits*c.visits) + 2*log(self.visits)/c.visits)
+
         return s
 
     def addChild(self, move, state, index):
@@ -199,9 +201,9 @@ class MCTSAgent(CaptureAgent):
     def UCT(self, rootState, index, enemyIndices ):
         fixedState = fixState(rootState, index, enemyIndices)
         rootNode = Node(state = fixedState, index=index)
-        rootNodeCopy = rootNode
         timeout = time.time() + .98
-        counter = 0 
+        counter = 0
+
         while time.time() < timeout:
             counter += 1
 
@@ -226,7 +228,26 @@ class MCTSAgent(CaptureAgent):
             #rollout
             while count < 10 and state.getLegalActions(index % state.getNumAgents()):
                 legalActions = state.getLegalActions(index % state.getNumAgents())
+                """
+                the line below returns a random move. im trying to experiment with nonrandom moves
+                using the evaluation function, but it comes at the cost of each rollout step costing
+                something like 10 times as much, so it might not be worth it
+                """
                 state = state.generateSuccessor(index % state.getNumAgents(), random.choice(legalActions))
+                """
+                below is the attempt at selecting a nonrandom move and should be commented out if the
+                line above is NOT commented out (ie, don't do both)
+                """
+
+                # states = []
+                # for move in legalActions:
+                #     states.append(state.generateSuccessor(index % state.getNumAgents(), move))
+                # bestMove = legalActions[states.index(max(states, key = self.evaluate))]
+                # print bestMove
+                # state = state.generateSuccessor(index % state.getNumAgents(), bestMove)
+
+                """ below here should never be commented out """
+
                 index += 1
                 count += 1
 
@@ -236,8 +257,11 @@ class MCTSAgent(CaptureAgent):
                 node.update(evaluation)
                 node = node.parentNode
 
-        return sorted(rootNode.childNodes, key = lambda c: c.visits)[-1].move # return the move that was most visited
-    
+        #print "iterated ", counter, " times"
+
+        return max(rootNode.childNodes, key = lambda c: c.visits).move # return the move that was most visited
+
+
     def evaluate(self, gameState):
         """
         Computes a linear combination of features and feature weights
@@ -252,9 +276,9 @@ class MCTSAgent(CaptureAgent):
         features['gameStateScore'] = self.getScore(gameState)
 
         # Compute distance to the nearest food
+        myPos = gameState.getAgentState(self.index).getPosition()
         foodList = self.getFood(gameState).asList()
         if len(foodList) > 0: # This should always be True,  but better safe than sorry
-            myPos = gameState.getAgentState(self.index).getPosition()
             minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
             features['distanceToFood'] = minDistance
 
