@@ -241,7 +241,7 @@ class MCTSAgent(CaptureAgent):
                 node.update(evaluation)
                 node = node.parentNode
 
-        print "iterated ", counter, " times"
+        #print "iterated ", counter, " times"
 
         return max(rootNode.childNodes, key = lambda c: c.visits).move # return the move that was most visited
 
@@ -259,7 +259,6 @@ class MCTSAgent(CaptureAgent):
         features = util.Counter()
         features['gameStateScore'] = self.getScore(gameState)
 
-        # Compute distance to the nearest food
         myPos = gameState.getAgentState(self.index).getPosition()
         enemies = [gameState.getAgentState(i) for i in self.getOpponents(gameState)]
         
@@ -269,11 +268,11 @@ class MCTSAgent(CaptureAgent):
             minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
             features['distanceToFood'] = minDistance
             
-        # Compute distance to the nearest capsule      
+        # Compute distance to the nearest capsule if near an enemy
         for a in enemies:
             if a.getPosition() != None:
                 capList = self.getCapsules(gameState)
-                if len(capList) > 0: # This should always be True,  but better safe than sorry
+                if len(capList) > 0:
                     minDistance = min([self.getMazeDistance(myPos, cap) for cap in capList])
                     features['distanceToCapsules'] = minDistance
 
@@ -284,23 +283,23 @@ class MCTSAgent(CaptureAgent):
         teamMateDistance = self.getMazeDistance(myPos, teamMatePos)
         features['teamMateDistance'] = teamMateDistance
         
-        #finds list of enemies that are currently invading and chase them unless scared
+        # chase invaders unless i'm scared; then kite
         invaders = [a for a in enemies if a.isPacman and a.getPosition() != None]
         if len(invaders) > 0:
             dists = []
             for a in invaders:
                 dists.append( self.getMazeDistance(myPos, a.getPosition()) )
-                if gameState.getAgentState(self.index).scaredTimer > 0:
+                if gameState.getAgentState(self.index).scaredTimer > dists[-1]:
                     dists[-1] *= -1
             features['invaderDistance'] = min(dists)
 
-        #finds list of enemies that are currently defending and kite them unless scared        
+        # kite nearest defender unless they're scared; then chase
         defenders = [a for a in enemies if not a.isPacman and a.getPosition() != None]
         if len(defenders) > 0:
             dists = []
             for a in defenders:
                 dists.append(self.getMazeDistance(myPos, a.getPosition()))
-                if a.scaredTimer > 0:
+                if a.scaredTimer > dists[-1]:
                     dists[-1] *= -1
             features['defenderDistance'] = min(dists)
 
