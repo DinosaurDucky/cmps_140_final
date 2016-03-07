@@ -230,11 +230,6 @@ class MCTSAgent(CaptureAgent):
                 #if index == (self.index + 2) % state.getNumAgents():
                 #    index += 1
                 legalActions = state.getLegalActions(index % state.getNumAgents())
-                """
-                the line below returns a random move. im trying to experiment with nonrandom moves
-                using the evaluation function, but it comes at the cost of each rollout step costing
-                something like 10 times as much, so it might not be worth it
-                """
                 state = state.generateSuccessor(index % state.getNumAgents(), random.choice(legalActions))
 
                 index += 1
