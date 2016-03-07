@@ -125,7 +125,7 @@ class Node:
         # ucb1 formula to select a child node
         # balances exploitation vs exploration
         #s = sorted(self.childNodes, key = lambda c: c.scoreSum/c.visits + sqrt(2*log(self.visits)/c.visits))[-1]
-        s = max(self.childNodes, key = lambda c: c.scoreSum/c.visits + sqrt(2*log(self.visits)/c.visits))
+        s = max(self.childNodes, key = lambda c: c.scoreSum/c.visits + 2*log(self.visits)/c.visits)
         #s = sorted(self.childNodes, key = lambda c: c.scoreSum*c.scoreSum/(c.visits*c.visits) + 2*log(self.visits)/c.visits)[-1]
         #s = max(self.childNodes, key = lambda c: c.scoreSum*c.scoreSum/(c.visits*c.visits) + 2*log(self.visits)/c.visits)
 
@@ -227,6 +227,8 @@ class MCTSAgent(CaptureAgent):
             count = 0
             #rollout
             while count < 10 and state.getLegalActions(index % state.getNumAgents()):
+                #if index == (self.index + 2) % state.getNumAgents():
+                #    index += 1
                 legalActions = state.getLegalActions(index % state.getNumAgents())
                 """
                 the line below returns a random move. im trying to experiment with nonrandom moves
@@ -234,19 +236,6 @@ class MCTSAgent(CaptureAgent):
                 something like 10 times as much, so it might not be worth it
                 """
                 state = state.generateSuccessor(index % state.getNumAgents(), random.choice(legalActions))
-                """
-                below is the attempt at selecting a nonrandom move and should be commented out if the
-                line above is NOT commented out (ie, don't do both)
-                """
-
-                # states = []
-                # for move in legalActions:
-                #     states.append(state.generateSuccessor(index % state.getNumAgents(), move))
-                # bestMove = legalActions[states.index(max(states, key = self.evaluate))]
-                # print bestMove
-                # state = state.generateSuccessor(index % state.getNumAgents(), bestMove)
-
-                """ below here should never be commented out """
 
                 index += 1
                 count += 1
@@ -257,7 +246,7 @@ class MCTSAgent(CaptureAgent):
                 node.update(evaluation)
                 node = node.parentNode
 
-        #print "iterated ", counter, " times"
+        print "iterated ", counter, " times"
 
         return max(rootNode.childNodes, key = lambda c: c.visits).move # return the move that was most visited
 
@@ -277,22 +266,55 @@ class MCTSAgent(CaptureAgent):
 
         # Compute distance to the nearest food
         myPos = gameState.getAgentState(self.index).getPosition()
+        enemies = [gameState.getAgentState(i) for i in self.getOpponents(gameState)]
+        
+        # Compute distance to the nearest food     
         foodList = self.getFood(gameState).asList()
         if len(foodList) > 0: # This should always be True,  but better safe than sorry
             minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
             features['distanceToFood'] = minDistance
+            
+        # Compute distance to the nearest capsule      
+        for a in enemies:
+            if a.getPosition() != None:
+                capList = self.getCapsules(gameState)
+                if len(capList) > 0: # This should always be True,  but better safe than sorry
+                    minDistance = min([self.getMazeDistance(myPos, cap) for cap in capList])
+                    features['distanceToCapsules'] = minDistance
+
 
         # encourage the agents to spread out
         teamMateIndex = (self.index + 2) % gameState.getNumAgents()
         teamMatePos = gameState.getAgentPosition(teamMateIndex)
         teamMateDistance = self.getMazeDistance(myPos, teamMatePos)
         features['teamMateDistance'] = teamMateDistance
+        
+        #finds list of enemies that are currently invading and chase them unless scared
+        invaders = [a for a in enemies if a.isPacman and a.getPosition() != None]
+        if len(invaders) > 0:
+            dists = []
+            for a in invaders:
+                dists.append( self.getMazeDistance(myPos, a.getPosition()) )
+                if gameState.getAgentState(self.index).scaredTimer > 0:
+                    dists[-1] *= -1
+            features['invaderDistance'] = min(dists)
+
+        #finds list of enemies that are currently defending and kite them unless scared        
+        defenders = [a for a in enemies if not a.isPacman and a.getPosition() != None]
+        if len(defenders) > 0:
+            dists = []
+            for a in defenders:
+                dists.append(self.getMazeDistance(myPos, a.getPosition()))
+                if a.scaredTimer > 0:
+                    dists[-1] *= -1
+            features['defenderDistance'] = min(dists)
 
 
         return features
 
     def getWeights(self, gameState):
-        return {'gameStateScore': 20, 'distanceToFood': -2, 'teamMateDistance': 1}
+        return {'gameStateScore': 1.5, 'distanceToFood': -.2, 'distanceToCapsules':-.5, \
+        'teamMateDistance': .1, 'invaderDistance': -.1, 'defenderDistance': .1}
 
 
     def chooseAction(self, gameState):
