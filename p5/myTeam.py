@@ -173,6 +173,9 @@ class MCTSAgent(CaptureAgent):
     create an agent as this is the bare minimum.
     """
 
+    movesMade = 0
+    initialTime = 0
+
     def registerInitialState(self, gameState):
         """
         This method handles the initial setup of the
@@ -193,6 +196,7 @@ class MCTSAgent(CaptureAgent):
         CaptureAgent.registerInitialState in captureAgents.py.
         '''
         CaptureAgent.registerInitialState(self, gameState)
+        self.movesMade = 0
 
     '''
     Your initialization code goes here, if you need any.
@@ -201,7 +205,15 @@ class MCTSAgent(CaptureAgent):
     def UCT(self, rootState, index, enemyIndices ):
         fixedState = fixState(rootState, index, enemyIndices)
         rootNode = Node(state = fixedState, index=index)
-        timeout = time.time() + .98
+
+        timeout = time.time() + 0.1
+        movesLeft = 300 - self.movesMade
+        timeLeft = self.initialTime + 120 - time.time()
+        if timeLeft > 0 and movesLeft > 0:
+            timeout += timeLeft / ((rootState.getNumAgents() -1 )*movesLeft)
+
+        #print "time for this move", timeout - time.time(), "moves left", movesLeft, "time left", timeLeft
+
         counter = 0
 
         while time.time() < timeout:
@@ -226,9 +238,8 @@ class MCTSAgent(CaptureAgent):
 
             count = 0
             #rollout
-            while count < 10 and state.getLegalActions(index % state.getNumAgents()):
-                #if index == (self.index + 2) % state.getNumAgents():
-                #    index += 1
+            while count < 8 and state.getLegalActions(index % state.getNumAgents()):
+
                 legalActions = state.getLegalActions(index % state.getNumAgents())
                 state = state.generateSuccessor(index % state.getNumAgents(), random.choice(legalActions))
 
@@ -308,9 +319,14 @@ class MCTSAgent(CaptureAgent):
 
     def getWeights(self, gameState):
         return {'gameStateScore': 1.5, 'distanceToFood': -.2, 'distanceToCapsules':-.5, \
-        'teamMateDistance': .1, 'invaderDistance': -.1, 'defenderDistance': .1}
+                'teamMateDistance': .1, 'invaderDistance': -.1, 'defenderDistance': .1}
 
 
     def chooseAction(self, gameState):
-    
+
+        if self.movesMade == 0:
+            self.initialTime = time.time()
+
+        self.movesMade += 1
+
         return self.UCT(gameState, self.index, self.getOpponents(gameState) )
